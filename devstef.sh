@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /bin/sh -x
 # Dev Stef - 2022
 
 # install Microsoft Visual Studio Build Tools from https://aka.ms/vs/17/release/vs_BuildTools.exe
@@ -13,6 +13,7 @@
 # mv /usr/bin/link.exe /usr/bin/link.exe.bak
 
 
+
 cd vendor
 mkdir sources
 mkdir build
@@ -20,7 +21,7 @@ cd sources
 
 # Make sure you opened the x64 Native Tools Command Prompt for VS 2022 and then opened MSYS2 shell command
 echo Getting libx264...
-git clone https://code.videolan.org/videolan/x264.git
+# git clone https://code.videolan.org/videolan/x264.git
 
 cd ../sources/x264
 curl "http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD" > config.guess
@@ -30,13 +31,13 @@ cd ../../build
 mkdir x264
 cd x264
  
-CC=cl ../../sources/x264/configure --prefix=../../installed --enable-static --extra-cflags="-MTd -Zi -Od"
+CC=cl ../../sources/x264/configure --prefix=../../installed  --extra-cflags="-MTd -Zi -Od"
 make
 make install
 
 echo Compiling ffmpeg...
 cd ../../sources
-git clone https://git.ffmpeg.org/ffmpeg.git ffmpeg
+# git clone https://git.ffmpeg.org/ffmpeg.git ffmpeg
 # cd ffmpeg
 # git checkout b37795688a9bfa6d5a2e9b2535c4b10ebc14ac5d
 

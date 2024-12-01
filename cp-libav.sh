@@ -35,6 +35,7 @@ cp vendor/installed/bin/swscale-*.dll Debug/
 cp vendor/installed/bin/swresample-*.dll Debug/
 cp vendor/installed/bin/avfilter-*.dll Debug/
 cp vendor/installed/bin/libx264-*.dll Debug/
+cp vendor/installed/bin/x264.exe Debug/
 
 # # .pdb files with wildcard version numbers
 # under vendor/build

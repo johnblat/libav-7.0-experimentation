@@ -1,7 +1,6 @@
 cl.exe /DEBUG:FULL /Zi ^
-/I "vendor/sources/ffmpeg" ^
+/I "vendor/installed/include" ^
 /I "SDL-release-2.30.8/include" ^
-/I "vendor/build/ffmpeg/libavutil" ^
 /Fe:Debug\ffmpeg-test.exe main.cpp ^
 vendor\installed\bin\avcodec.lib ^
 vendor\installed\bin\avformat.lib ^

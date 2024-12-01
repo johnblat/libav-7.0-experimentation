@@ -24,3 +24,10 @@ rm -r vendor/installed/include/*
 rm -r vendor/installed/lib/*
 rm -r vendor/installed/share/*
 rm -r vendor/sources/ffmpeg
+
+### pkgconf stuff
+for libx264, i had to move x264.exe from bin to lib bc of where the .pc file was pointing to the .exe dir, and the ffmpeg build system uses that to determine where the .exe is i think. 
+
+## TODO
+[] Build ffmpeg (CLI) to see how seeking is done
+[] look at ffmpeg code to see how seeking is done

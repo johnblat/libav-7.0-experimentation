@@ -4,7 +4,7 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/vendor/sources/ffmpeg",
+                "${workspaceFolder}/vendor/installed/include",
                 "${workspaceFolder}/SDL-release-2.30.8/include"
             ],
             "defines": [
