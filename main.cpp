@@ -19,8 +19,9 @@ int video_stream_index = -1;
 AVFrame *curr_frame = NULL;
 AVPacket *curr_pkt = NULL;
 
-int64_t frame_ptss[1024] = {0};
-
+int64_t frame_ptss[44000] = {0};
+int key_frame_indices[4400] = {0};
+int key_frame_indices_len = 0;
 //
 // 2. SDL2
 //
@@ -167,9 +168,9 @@ const void *log_av_ptr_err(const void *ptr, const char *func_call_str, const cha
 #define LOGERR() (print_err_at( __FILE__, __LINE__))
 #define LOG_SDL_PTR_ERR(ptr, func_call) (log_av_ptr_err((ptr = (func_call), ptr), #func_call, __FILE__, __LINE__))
 
-int init_libav() {
+int init_libav(const char *filename) {
     format_ctx = avformat_alloc_context();
-    if(LOGAVERR(avformat_open_input(&format_ctx, "small_bunny_1080p_60fps.mp4", NULL, NULL)) < 0) {
+    if(LOGAVERR(avformat_open_input(&format_ctx,filename, NULL, NULL)) < 0) {
         return -1;
     }
     if(LOGAVERR(avformat_find_stream_info(format_ctx, NULL)) < 0) {
@@ -322,6 +323,10 @@ int fill_frames_pts_array() {
         }
         av_packet_unref(curr_pkt);
         frame_ptss[frame_index] = curr_frame->pts;
+        if(curr_frame->key_frame) {
+            key_frame_indices[key_frame_indices_len] = frame_index;
+            key_frame_indices_len++;
+        }
         frame_index++;
     }
     if(read_frame_errnum < 0 && read_frame_errnum != AVERROR_EOF) {
@@ -333,6 +338,10 @@ int fill_frames_pts_array() {
     if(LOGAVERR(av_seek_frame(format_ctx, video_stream_index, frame_ptss[0], AVSEEK_FLAG_BACKWARD)) < 0) {
         return 1;
     }
+
+    if(LOGAVERR(av_seek_frame(format_ctx, video_stream_index, 11 * 30, AVSEEK_FLAG_FRAME)) < 0) {
+        return 1;
+    }
     
     return 0;
 }
@@ -340,7 +349,7 @@ int fill_frames_pts_array() {
 // MAIN
 //
 int main(int argc, char **argv) {
-    if(init_libav() < 0) {
+    if(init_libav(argv[1]) < 0) {
         close();
         return 1;
     }
@@ -349,9 +358,16 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    fill_frames_pts_array();
+    read_until_not_eagain_frame();
 
+    // seek to first frame
+    if(LOGAVERR(av_seek_frame(format_ctx, video_stream_index, 0, AVSEEK_FLAG_BACKWARD)) < 0) {
+        return 1;
+    }
 
+    if(LOGAVERR(av_seek_frame(format_ctx, video_stream_index, 11 * 30, AVSEEK_FLAG_FRAME)) < 0) {
+        return 1;
+    }
     
     return 0;
 }

@@ -7,7 +7,7 @@
         "request": "launch",
         "program": "${workspaceFolder}\\Debug\\ffmpeg-test.exe",
         "args": [
-          "small_bunny_1080p_60fps.mp4",
+          "Farside-1min.mp4",
           "48",
         ],
         "stopAtEntry": false,

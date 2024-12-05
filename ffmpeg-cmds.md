@@ -1,0 +1,1 @@
+vendor/installed/bin/ffmpeg -i "Gary.Larsons.Tales.From.The.Far.Side.I.DVDRip.x264.aac.mp4" -c copy -t 00:01:00 "Farside-1min.mp4"

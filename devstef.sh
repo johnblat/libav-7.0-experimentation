@@ -47,3 +47,6 @@ cd ffmpeg
 CC=cl  PKG_CONFIG_PATH=../../installed/lib/pkgconfig ../../sources/ffmpeg/configure --prefix=../../installed --toolchain=msvc --target-os=win64 --arch=x86_64 --disable-programs --disable-x86asm --disable-asm --enable-shared --enable-libx264 --disable-protocol=rtmp --disable-protocol=rtmps --disable-protocol=rtmpt --disable-protocol=rtmpts --disable-doc --enable-gpl --enable-version3 --enable-debug --disable-optimizations --optflags="-Od -Zi" --extra-ldflags="-LIBPATH:../../installed/lib" --extra-cflags="-I../../installed/include/ -MTd" --extra-cxxflags="-I../../installed/include/ -MTd"
 make
 make install
+
+# below is the command to compile ffmpeg with static libraries
+# CC=cl  PKG_CONFIG_PATH=../../installed/lib/pkgconfig ../../sources/ffmpeg/configure --prefix=../../installed --toolchain=msvc --target-os=win64 --arch=x86_64 --disable-x86asm --disable-asm --enable-static --enable-libx264 --disable-protocol=rtmp --disable-protocol=rtmps --disable-protocol=rtmpt --disable-protocol=rtmpts --disable-doc --enable-gpl --enable-version3 --enable-debug --disable-optimizations --optflags="-Od -Zi" --extra-ldflags="-LIBPATH:../../installed/lib" --extra-cflags="-I../../installed/include/ -MTd" --extra-cxxflags="-I../../installed/include/ -MTd"
