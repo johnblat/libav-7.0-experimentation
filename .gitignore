@@ -1,2 +1,3 @@
 vendor/build
-vendor/source
+junk
+*.obj
