@@ -357,44 +357,57 @@ int64_t estimate_frame_timestamp(int target_frame) {
     return av_rescale(target_frame, video_stream->duration > 0 ? video_stream->duration : AV_TIME_BASE, 250);
 }
 
-int seek_to_frame(int target_frame) {
+int seek_to_frame(AVFormatContext *ic, int stream_index, AVCodecContext *codec_ctx, AVFrame *frame, AVPacket *pkt, int target_frame) {
+    
     int64_t target_ts = estimate_frame_timestamp(target_frame);
 
-    if(LOGAVERR(avformat_seek_file(ic, video_stream_index, INT64_MIN, target_ts, INT64_MAX, AVSEEK_FLAG_BACKWARD)) < 0) {
-        return 1;
+    int err = 0;
+
+    if(err = avformat_seek_file(ic, stream_index, INT64_MIN, target_ts, INT64_MAX, AVSEEK_FLAG_BACKWARD), err < 0) {
+        return err;
     }
 
     avcodec_flush_buffers(codec_ctx);
 
-    if(read_for_n_frames(1) < 0) {
-        close();
-        return 1;
-    }
-
-    // // get current frame number
-    int64_t curr_pts = curr_frame->pts;
-
-    // int64_t curr_frame_index = av_index_search_timestamp(ic->streams[video_stream_index], curr_pts, 0);
-
-    // // find number of frames needed to reach target frame index
-    // int64_t frames_to_read = target_frame - curr_frame_index;
-
-    // if(read_for_n_frames(frames_to_read) < 0) {
-    //     close();
-    //     return 1;
-    // }
-
-    // if curr pts is less than the target pts, read until we reach the target pts
-    while(curr_pts < target_ts) {
-        if(read_for_n_frames(1) < 0) {
-            close();
-            return 1;
+    for(;;){
+        if(err = av_read_frame(ic, pkt), err < 0) {
+            return err;
         }
-        curr_pts = curr_frame->pts;
-    }
+        
+        if(pkt->stream_index != stream_index) {
+            av_packet_unref(pkt);
+            continue;
+        }
 
+        if(err = avcodec_send_packet(codec_ctx, pkt), err < 0) {
+            return err;
+        }
+
+        if(err = avcodec_receive_frame(codec_ctx, curr_frame), err < 0) {
+            if(err == AVERROR(EAGAIN)) {
+                av_packet_unref(pkt);
+                continue;
+            }
+
+            if(err == AVERROR_EOF) {
+                av_packet_unref(pkt);
+                break;
+            }
+            
+            return err;
+        }
+
+        if(curr_frame->pts >= target_ts) {
+            av_packet_unref(pkt);
+            break;
+        }
+
+        av_packet_unref(pkt);
+        continue;  
+    }
     return 0;
 }
+
 // MAIN
 //
 int main(int argc, char **argv) {
@@ -419,27 +432,10 @@ int main(int argc, char **argv) {
     // if(LOGAVERR(av_seek_frame(format_ctx, video_stream_index, 0, AVSEEK_FLAG_BACKWARD)) < 0) {
     //     return 1;
     // }
-
-    int64_t target_frame_index = 720;
-    int64_t target_ts = estimate_frame_timestamp(target_frame_index);
-
-    if(LOGAVERR(avformat_seek_file(ic, video_stream_index, INT64_MIN, target_ts, INT64_MAX, AVSEEK_FLAG_BACKWARD)) < 0) {
+    int err = seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt, 720);
+    if (err < 0) {
         close();
         return 1;
-    }
-
-    avcodec_flush_buffers(codec_ctx);
-
-    if(read_for_n_frames(1) < 0) {
-        close();
-        return 1;
-    }
-
-    while(curr_frame->pts < target_ts) {
-        if(read_for_n_frames(1) < 0) {
-            close();
-            return 1;
-        }
     }
 
 

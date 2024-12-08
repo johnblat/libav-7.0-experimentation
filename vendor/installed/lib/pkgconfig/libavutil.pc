@@ -9,6 +9,6 @@ Version: 59.47.100
 Requires: 
 Requires.private: 
 Conflicts:
-Libs: -L${libdir}  -lavutil user32.lib bcrypt.lib
-Libs.private: 
+Libs: -L${libdir}  -lavutil 
+Libs.private: user32.lib bcrypt.lib
 Cflags: -I${includedir}
