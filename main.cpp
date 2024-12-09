@@ -56,6 +56,71 @@ static const struct TextureFormatEntry {
     { AV_PIX_FMT_UYVY422,        SDL_PIXELFORMAT_UYVY },
 };
 
+#define CACHE_SIZE 16
+// FrameBufferCache
+typedef struct AVFrameCircularBufferCache {
+    AVFrame *frames[CACHE_SIZE];
+    int start_index;
+    int size;
+};
+
+AVFrameCircularBufferCache av_frame_circular_buffer_cache_init() {
+    AVFrameCircularBufferCache cache;
+    cache.start_index = 0;
+    cache.size = 0;
+    for(int i = 0; i < CACHE_SIZE; i++) {
+        cache.frames[i] = av_frame_alloc();
+    }
+    return cache;
+}
+
+void av_frame_circular_buffer_cache_free(AVFrameCircularBufferCache *cache) {
+    for(int i = 0; i < CACHE_SIZE; i++) {
+        av_frame_free(&cache->frames[i]);
+    }
+    cache->start_index = 0;
+    cache->size = 0;
+}
+
+void av_frame_circular_buffer_cache_push(AVFrameCircularBufferCache *cache, AVFrame *frame) {
+    if(cache->size >= CACHE_SIZE) {
+        av_frame_free(&cache->frames[cache->start_index]);
+        cache->start_index = (cache->start_index + 1) % CACHE_SIZE;
+        cache->size--;
+    }
+    cache->frames[(cache->start_index + cache->size) % CACHE_SIZE] = frame;
+    cache->size++;
+}
+
+// SDLTexture stuff
+int sdl_texture_array_init(SDL_Texture **arr, int size, Uint32 pix_fmt, int w, int h) {
+    arr = (SDL_Texture **)malloc(size * sizeof(SDL_Texture *)); 
+    if(!arr) {
+        return 1;
+    }
+
+    for(int i = 0; i < size; i++) {
+        arr[i] = SDL_CreateTexture(sdl_renderer, pix_fmt, SDL_TEXTUREACCESS_STATIC, w, h);
+        if(!arr[i]) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+void sdl_texture_array_render_horizontal_strip(SDL_Texture **arr, int size, int w, int h, int x, int y) {
+
+    // fix pointer to complete type
+    int total_w = w * size;
+    for(int i = 0; i < size; i++) {
+        int xi = (i * w) + x;
+        SDL_Rect dst_rect = {xi, y, w, h};
+        SDL_RenderCopy(sdl_renderer, arr[x], NULL, &dst_rect);  
+    }
+}
+
+
 //
 // FUNCTIONS
 //
@@ -339,22 +404,40 @@ int read_for_n_frames(int n) {
 }
 
 
-int64_t estimate_frame_timestamp(int target_frame) {
+int64_t estimate_frame_timestamp(int framenum) {
     AVStream *video_stream = ic->streams[video_stream_index];
     
     // If we have a duration, use it to estimate
     if (video_stream->duration != AV_NOPTS_VALUE && video_stream->nb_frames > 0) {
-        return av_rescale(target_frame, video_stream->duration, video_stream->nb_frames);
+        return av_rescale(framenum, video_stream->duration, video_stream->nb_frames);
     }
     
     // If we have a frame rate, use it to estimate
     if (video_stream->avg_frame_rate.num && video_stream->avg_frame_rate.den) {
-        double seconds = (double)target_frame * av_q2d(av_inv_q(video_stream->avg_frame_rate));
+        double seconds = (double)framenum * av_q2d(av_inv_q(video_stream->avg_frame_rate));
         return av_rescale(seconds * AV_TIME_BASE, video_stream->time_base.num, video_stream->time_base.den);
     }
     
     // If all else fails, make a very rough estimate
-    return av_rescale(target_frame, video_stream->duration > 0 ? video_stream->duration : AV_TIME_BASE, 250);
+    return av_rescale(framenum, video_stream->duration > 0 ? video_stream->duration : AV_TIME_BASE, 250);
+}
+
+int timestamp_to_framenum(int64_t timestamp) {
+    AVStream *video_stream = ic->streams[video_stream_index];
+    
+    // If we have a duration, use it to estimate
+    if (video_stream->duration != AV_NOPTS_VALUE && video_stream->nb_frames > 0) {
+        return av_rescale(timestamp, video_stream->nb_frames, video_stream->duration);
+    }
+    
+    // If we have a frame rate, use it to estimate
+    if (video_stream->avg_frame_rate.num && video_stream->avg_frame_rate.den) {
+        double seconds = (double)timestamp * av_q2d(av_inv_q(video_stream->avg_frame_rate));
+        return av_rescale(seconds * AV_TIME_BASE, video_stream->time_base.num, video_stream->time_base.den);
+    }
+    
+    // If all else fails, make a very rough estimate
+    return av_rescale(timestamp, 250, video_stream->duration > 0 ? video_stream->duration : AV_TIME_BASE);
 }
 
 int seek_to_frame(AVFormatContext *ic, int stream_index, AVCodecContext *codec_ctx, AVFrame *frame, AVPacket *pkt, int target_frame) {
@@ -408,6 +491,13 @@ int seek_to_frame(AVFormatContext *ic, int stream_index, AVCodecContext *codec_c
     return 0;
 }
 
+int seek_backwards_one_frame(int curr_frame_num) {
+    int target_frame = curr_frame_num - 1;
+    return seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt, target_frame);
+}
+
+
+
 // MAIN
 //
 int main(int argc, char **argv) {
@@ -422,30 +512,11 @@ int main(int argc, char **argv) {
 
     read_until_not_eagain_frame();
 
-    // int err = read_for_n_frames(48);
-    // if (err < 0) {
-    //     close();
-    //     return 1;
-    // }
-
-    // seek to first frame
-    // if(LOGAVERR(av_seek_frame(format_ctx, video_stream_index, 0, AVSEEK_FLAG_BACKWARD)) < 0) {
-    //     return 1;
-    // }
     int err = seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt, 720);
     if (err < 0) {
         close();
         return 1;
     }
-
-
-    // avcodec_flush_buffers(codec_ctx);
-
-    // if(LOGAVERR(av_seek_frame(format_ctx, video_stream_index, 11 * 30, AVSEEK_FLAG_FRAME)) < 0) {
-    //     return 1;
-    // }
-
-    // avcodec_flush_buffers(codec_ctx);
 
     // put current frame in sdl texture
     AVFrame *f = curr_frame;
@@ -456,16 +527,14 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // if( SDL_UpdateTexture(sdl_display_texture, NULL, f->data[0], f->linesize[0]) < 0 ) {
-    //     const char *errmsg = SDL_GetError();
-    //     fprintf(stderr, "Error: %s\n", errmsg);
-    //     return 1;
-    // }
     if( SDL_UpdateYUVTexture(sdl_display_texture, NULL, f->data[0], f->linesize[0], f->data[1], f->linesize[1], f->data[2], f->linesize[2]) < 0 ) {
         const char *errmsg = SDL_GetError();
         fprintf(stderr, "Error: %s\n", errmsg);
         return 1;
     }
+
+    int input_move_forward = 0;
+    int input_move_backward = 0;
 
     // SDL loop 
     SDL_Event event;
@@ -474,6 +543,44 @@ int main(int argc, char **argv) {
         while(SDL_PollEvent(&event)) {
             if(event.type == SDL_QUIT) {
                 quit = 1;
+            }
+            if(event.type == SDL_KEYUP) {
+                switch(event.key.keysym.sym) {
+                    case SDLK_RIGHT:
+                        input_move_forward = 1;
+                        break;
+                    case SDLK_LEFT:
+                        input_move_backward = 1;
+                        break;
+                    case SDLK_q:
+                        quit = 1;
+                        break;
+                }
+            }
+        }
+        if(input_move_forward) {
+            input_move_forward = 0;
+            if(read_for_n_frames(1) < 0) {
+                close();
+                return 1;
+            }
+            if( SDL_UpdateYUVTexture(sdl_display_texture, NULL, curr_frame->data[0], curr_frame->linesize[0], curr_frame->data[1], curr_frame->linesize[1], curr_frame->data[2], curr_frame->linesize[2]) < 0 ) {
+                const char *errmsg = SDL_GetError();
+                fprintf(stderr, "Error: %s\n", errmsg);
+                return 1;
+            }
+        }
+        if(input_move_backward) {
+            input_move_backward = 0;
+            int curr_framenum = timestamp_to_framenum(curr_frame->pts);
+            if(seek_backwards_one_frame(curr_framenum) < 0) {
+                close();
+                return 1;
+            }
+            if( SDL_UpdateYUVTexture(sdl_display_texture, NULL, curr_frame->data[0], curr_frame->linesize[0], curr_frame->data[1], curr_frame->linesize[1], curr_frame->data[2], curr_frame->linesize[2]) < 0 ) {
+                const char *errmsg = SDL_GetError();
+                fprintf(stderr, "Error: %s\n", errmsg);
+                return 1;
             }
         }
         // display texture
