@@ -5,6 +5,9 @@ extern "C"
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
 }
+#include "pts_frame_conversions.h"
+#include "seek.h"
+#include "texture_ring.h"
 #include <SDL.h>
 #include <stdio.h>
 
@@ -76,76 +79,9 @@ SDL_PixelFormatEnum pix_fmt_av_to_sdl(enum AVPixelFormat format)
     return SDL_PIXELFORMAT_UNKNOWN;
 }
 
-#define CACHE_SIZE 16
-// FrameBufferCache
-typedef struct AVFrameCircularBufferCache
-{
-    AVFrame *frames[CACHE_SIZE];
-    int start_index;
-    int size;
-};
-
-AVFrameCircularBufferCache av_frame_circular_buffer_cache_init()
-{
-    AVFrameCircularBufferCache cache;
-    cache.start_index = 0;
-    cache.size = 0;
-    for (int i = 0; i < CACHE_SIZE; i++)
-    {
-        cache.frames[i] = av_frame_alloc();
-    }
-    return cache;
-}
-
-void av_frame_circular_buffer_cache_free(AVFrameCircularBufferCache *cache)
-{
-    for (int i = 0; i < CACHE_SIZE; i++)
-    {
-        av_frame_free(&cache->frames[i]);
-    }
-    cache->start_index = 0;
-    cache->size = 0;
-}
-
-void av_frame_circular_buffer_cache_push(AVFrameCircularBufferCache *cache,
-                                         AVFrame *frame)
-{
-    if (cache->size >= CACHE_SIZE)
-    {
-        av_frame_free(&cache->frames[cache->start_index]);
-        cache->start_index = (cache->start_index + 1) % CACHE_SIZE;
-        cache->size--;
-    }
-    cache->frames[(cache->start_index + cache->size) % CACHE_SIZE] = frame;
-    cache->size++;
-}
-
-// SDLTexture stuff
-int sdl_texture_array_init(SDL_Texture **arr, int size, Uint32 pix_fmt, int w, int h)
-{
-    arr = (SDL_Texture **)malloc(size * sizeof(SDL_Texture *));
-    if (!arr)
-    {
-        return 1;
-    }
-
-    for (int i = 0; i < size; i++)
-    {
-        arr[i] =
-            SDL_CreateTexture(sdl_renderer, pix_fmt, SDL_TEXTUREACCESS_STATIC, w, h);
-        if (!arr[i])
-        {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
 void sdl_texture_array_render_horizontal_strip(SDL_Texture **arr, int size, int elm_w,
                                                int elm_h, int x, int y)
 {
-    int total_w = elm_w * size;
     for (int i = 0; i < size; i++)
     {
         int xi = (i * elm_w) + x;
@@ -204,28 +140,6 @@ int read_n_frames_into_sdl_texture_arr(SDL_Texture **arr, int size, int dst_w,
             return err;
         }
 
-        // arr[i] = SDL_CreateTexture(sdl_renderer,
-        // pix_fmt_av_to_sdl((AVPixelFormat)avframe->format),
-        //                            SDL_TEXTUREACCESS_STREAMING, avframe->width,
-        //                            avframe->height);
-        // if (!arr[i])
-        // {
-        //     const char *errmsg = SDL_GetError();
-        //     fprintf(stderr, "Error: %s\n", errmsg);
-        //     return 1;
-        // }
-
-        // if (SDL_UpdateYUVTexture(arr[i], NULL, avframe->data[0],
-        // avframe->linesize[0], avframe->data[1],
-        //                          avframe->linesize[1], avframe->data[2],
-        //                          avframe->linesize[2]) < 0)
-        // {
-        //     const char *errmsg = SDL_GetError();
-        //     fprintf(stderr, "Error: %s\n", errmsg);
-        //     return 1;
-        // }
-        // use sws_scale to convert the frame to the texture of the desired scale
-
         SwsContext *sws_ctx = sws_getContext(
             avframe->width, avframe->height, (AVPixelFormat)avframe->format, dst_w,
             dst_h, (AVPixelFormat)avframe->format, SWS_BILINEAR, NULL, NULL, NULL);
@@ -279,10 +193,6 @@ int read_n_frames_into_sdl_texture_arr(SDL_Texture **arr, int size, int dst_w,
 
     return 0;
 }
-
-//
-// FUNCTIONS
-//
 
 // close
 //
@@ -487,24 +397,6 @@ int init_sdl()
     return 0;
 }
 
-int is_read_frame_err_ok(int errnum)
-{
-    if (errnum < 0)
-    {
-        if (errnum == AVERROR_EOF)
-        {
-            return 1;
-        }
-        if (errnum == AVERROR(EAGAIN))
-        {
-            return 1;
-        }
-        print_err_str(errnum);
-        return 0;
-    }
-    return 1;
-}
-
 int read_until_not_eagain_frame()
 {
     int read_frame_errnum = 0;
@@ -645,119 +537,6 @@ int read_for_n_frames(int n)
     return 0;
 }
 
-int64_t estimate_frame_timestamp(int framenum)
-{
-    AVStream *video_stream = ic->streams[video_stream_index];
-
-    // If we have a duration, use it to estimate
-    if (video_stream->duration != AV_NOPTS_VALUE && video_stream->nb_frames > 0)
-    {
-        return av_rescale(framenum, video_stream->duration, video_stream->nb_frames);
-    }
-
-    // If we have a frame rate, use it to estimate
-    if (video_stream->avg_frame_rate.num && video_stream->avg_frame_rate.den)
-    {
-        double seconds =
-            (double)framenum * av_q2d(av_inv_q(video_stream->avg_frame_rate));
-        return av_rescale(seconds * AV_TIME_BASE, video_stream->time_base.num,
-                          video_stream->time_base.den);
-    }
-
-    // If all else fails, make a very rough estimate
-    return av_rescale(
-        framenum, video_stream->duration > 0 ? video_stream->duration : AV_TIME_BASE,
-        250);
-}
-
-int timestamp_to_framenum(int64_t timestamp)
-{
-    AVStream *video_stream = ic->streams[video_stream_index];
-
-    // If we have a duration, use it to estimate
-    if (video_stream->duration != AV_NOPTS_VALUE && video_stream->nb_frames > 0)
-    {
-        return av_rescale(timestamp, video_stream->nb_frames, video_stream->duration);
-    }
-
-    // If we have a frame rate, use it to estimate
-    if (video_stream->avg_frame_rate.num && video_stream->avg_frame_rate.den)
-    {
-        double seconds =
-            (double)timestamp * av_q2d(av_inv_q(video_stream->avg_frame_rate));
-        return av_rescale(seconds * AV_TIME_BASE, video_stream->time_base.num,
-                          video_stream->time_base.den);
-    }
-
-    // If all else fails, make a very rough estimate
-    return av_rescale(timestamp, 250,
-                      video_stream->duration > 0 ? video_stream->duration
-                                                 : AV_TIME_BASE);
-}
-
-int seek_to_frame(AVFormatContext *ic, int stream_index, AVCodecContext *codec_ctx,
-                  AVFrame *frame, AVPacket *pkt, int target_frame)
-{
-    int64_t target_ts = estimate_frame_timestamp(target_frame);
-
-    int err = 0;
-
-    if (err = avformat_seek_file(ic, stream_index, INT64_MIN, target_ts, INT64_MAX,
-                                 AVSEEK_FLAG_BACKWARD),
-        err < 0)
-    {
-        return err;
-    }
-
-    avcodec_flush_buffers(codec_ctx);
-
-    for (;;)
-    {
-        if (err = av_read_frame(ic, pkt), err < 0)
-        {
-            return err;
-        }
-
-        if (pkt->stream_index != stream_index)
-        {
-            av_packet_unref(pkt);
-            continue;
-        }
-
-        if (err = avcodec_send_packet(codec_ctx, pkt), err < 0)
-        {
-            return err;
-        }
-
-        if (err = avcodec_receive_frame(codec_ctx, curr_frame), err < 0)
-        {
-            if (err == AVERROR(EAGAIN))
-            {
-                av_packet_unref(pkt);
-                continue;
-            }
-
-            if (err == AVERROR_EOF)
-            {
-                av_packet_unref(pkt);
-                break;
-            }
-
-            return err;
-        }
-
-        if (curr_frame->pts >= target_ts)
-        {
-            av_packet_unref(pkt);
-            break;
-        }
-
-        av_packet_unref(pkt);
-        continue;
-    }
-    return 0;
-}
-
 int seek_backwards_one_frame(int curr_frame_num)
 {
     int target_frame = curr_frame_num - 1;
@@ -782,8 +561,10 @@ int main(int argc, char **argv)
 
     read_until_not_eagain_frame();
 
-    int err =
-        seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt, 200);
+    int start_frame_num = 700;
+
+    int err = seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt,
+                            start_frame_num);
     if (err < 0)
     {
         close();
@@ -805,7 +586,8 @@ int main(int argc, char **argv)
     read_n_frames_into_sdl_texture_arr(sdl_texture_arr, sdl_texture_arr_size,
                                        strip_elm_w, strip_elm_h);
 
-    err = seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt, 200);
+    err = seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt,
+                        start_frame_num);
     if (err < 0)
     {
         close();
@@ -884,7 +666,8 @@ int main(int argc, char **argv)
         if (input_move_backward)
         {
             input_move_backward = 0;
-            int curr_framenum = timestamp_to_framenum(curr_frame->pts);
+            int curr_framenum =
+                timestamp_to_framenum(ic, video_stream_index, curr_frame->pts);
             if (seek_backwards_one_frame(curr_framenum) < 0)
             {
                 close();

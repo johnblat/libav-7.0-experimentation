@@ -1,0 +1,11 @@
+1. Windows Batch script to be used as the build file in build.bat
+2. The programming language is C++ with C-like style. Do not create classes, private variables, or use c++ standard library unless instructed.
+3. Don't modify any files under the `vendor` or `SDL-release-2.30.8` directories as they are dependencies.
+4. Use `#pragma once` instead of #include guards in header files.
+5. Reference files under `vendor/sources/ffmpeg/fftools` and `vendor/sources/ffmpeg/doc/examples` for guidance on styling and ffmpeg library usage.
+6. The compiler is MSVC for Visual Studio 2022.
+7. Whenever creating a `.cpp` file, create a corresponding `.h` file with the structs and function declarations.
+8. Whenever creating a `.cpp` file, add it to the `build.bat` file.
+9. Keep a log of what you do in a `windsurf-log.md` file.
+10. Functions that are only used in one file should be inlined and prefixed with `internal_`
+11. Whenever you extract of refactor a function from one file to another, place a comment of a copy of the original function above it.
