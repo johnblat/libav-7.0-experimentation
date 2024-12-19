@@ -2,11 +2,12 @@ cl.exe /DEBUG:FULL /Zi ^
 /I "vendor/installed/include" ^
 /I "SDL-release-2.30.8/include" ^
 /Fe:Debug\ffmpeg-test.exe ^
-main.cpp ^
-pts_frame_conversions.cpp ^
-texture_ring.cpp ^
-seek.cpp ^
-read.cpp ^
+/Fo.\obj\ ^
+src\main.cpp ^
+src\pts_frame_conversions.cpp ^
+src\texture_ring.cpp ^
+src\seek.cpp ^
+src\read.cpp ^
 vendor\installed\bin\avcodec.lib ^
 vendor\installed\bin\avformat.lib ^
 vendor\installed\bin\avutil.lib ^
