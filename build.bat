@@ -1,20 +1,21 @@
 cl.exe /DEBUG:FULL /Zi ^
 /I "vendor/installed/include" ^
-/I "SDL-release-2.30.8/include" ^
+/I "vendor\raylib-5.5_win64_msvc16\include" ^
 /Fe:Debug\ffmpeg-test.exe ^
 /Fo.\obj\ ^
 src\main.cpp ^
+src\state.cpp ^
 src\pts_frame_conversions.cpp ^
 src\texture_ring.cpp ^
 src\seek.cpp ^
 src\read.cpp ^
+src\pixel_fmt.cpp ^
 vendor\installed\bin\avcodec.lib ^
 vendor\installed\bin\avformat.lib ^
 vendor\installed\bin\avutil.lib ^
 vendor\installed\bin\swscale.lib ^
-SDL-release-2.30.8\VisualC\x64\Debug\SDL2main.lib ^
-SDL-release-2.30.8\VisualC\x64\Debug\SDL2.lib ^
-/link /SUBSYSTEM:WINDOWS Shell32.lib
+vendor\raylib-5.5_win64_msvc16\lib\raylibdll.lib ^
+
 
 :: SDL2-2.30.8\lib\x64\SDL2.lib ^
 :: SDL2-2.30.8\lib\x64\SDL2main.lib ^
