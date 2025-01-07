@@ -9,6 +9,8 @@ extern "C"
 #include "seek.h"
 #include "texture_ring.h"
 #include <SDL.h>
+
+// #include <raylib.h>
 #include <stdio.h>
 
 //
@@ -32,6 +34,12 @@ SDL_Renderer *sdl_renderer = NULL;
 SDL_Texture *sdl_display_texture = NULL;
 int sdl_display_texture_w = 1024;
 int sdl_display_texture_h = 768;
+
+//
+// 2. Raylib
+// NOTE: This will replace SDL2 in this codebase, so need to replace the SDL vars with
+// raylib equivelants
+//
 
 //
 // 3. texture pixel format map
@@ -370,8 +378,8 @@ int init_sdl()
     if (LOG_SDL_PTR_ERR(sdl_window,
                         SDL_CreateWindow("SDL2 Window", SDL_WINDOWPOS_UNDEFINED,
                                          SDL_WINDOWPOS_UNDEFINED, sdl_display_texture_w,
-                                         sdl_display_texture_h, SDL_WINDOW_SHOWN)) ==
-        NULL)
+                                         sdl_display_texture_h + 40,
+                                         SDL_WINDOW_SHOWN)) == NULL)
     {
         return -1;
     }
@@ -440,49 +448,6 @@ int read_until_not_eagain_frame()
         print_err_str(read_frame_errnum);
         return 1;
     }
-    return 0;
-}
-
-int readloop()
-{
-    int read_frame_errnum = 0;
-    for (;;)
-    {
-        read_frame_errnum = av_read_frame(ic, curr_pkt);
-        if (read_frame_errnum < 0)
-        {
-            break;
-        }
-        if (curr_pkt->stream_index != video_stream_index)
-        {
-            av_packet_unref(curr_pkt);
-            continue;
-        }
-        if (LOGAVERR(avcodec_send_packet(codec_ctx, curr_pkt)) < 0)
-        {
-            return 1;
-        }
-        int errnum = LOGAVERR(avcodec_receive_frame(codec_ctx, curr_frame));
-        if (errnum == AVERROR(EAGAIN))
-        {
-            av_packet_unref(curr_pkt);
-            continue;
-        }
-        if (errnum < 0)
-        {
-            av_packet_unref(curr_pkt);
-            print_err_str(errnum);
-            return errnum;
-        }
-        av_packet_unref(curr_pkt);
-    }
-
-    if (read_frame_errnum < 0 && read_frame_errnum != AVERROR_EOF)
-    {
-        print_err_str(read_frame_errnum);
-        return 1;
-    }
-
     return 0;
 }
 
@@ -561,59 +526,71 @@ int main(int argc, char **argv)
 
     read_until_not_eagain_frame();
 
-    int start_frame_num = 700;
+    int start_frame_num = 800;
 
     int err = seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt,
                             start_frame_num);
+
     if (err < 0)
+    {
+        close();
+        return 1;
+    }
+
+    TextureFrameRing tfring;
+    ring_init(&tfring, sdl_renderer, curr_frame->width, curr_frame->height,
+              pix_fmt_av_to_sdl((AVPixelFormat)curr_frame->format), ic, codec_ctx,
+              video_stream_index);
+    int ret = ring_fill(&tfring, ic, codec_ctx, video_stream_index, start_frame_num);
+    if (ret < 0)
     {
         close();
         return 1;
     }
 
     // make the sdltexture arr
-    int sdl_texture_arr_size = 32;
+    // int sdl_texture_arr_size = 32;
 
-    SDL_Texture **sdl_texture_arr =
-        (SDL_Texture **)malloc(sdl_texture_arr_size * sizeof(SDL_Texture *));
-    for (int i = 0; i < sdl_texture_arr_size; i++)
-    {
-        sdl_texture_arr[i] = NULL;
-    }
+    // SDL_Texture **sdl_texture_arr =
+    //     (SDL_Texture **)malloc(sdl_texture_arr_size * sizeof(SDL_Texture *));
+    // for (int i = 0; i < sdl_texture_arr_size; i++)
+    // {
+    //     sdl_texture_arr[i] = NULL;
+    // }
 
-    int strip_elm_w = 50;
-    int strip_elm_h = 50;
-    read_n_frames_into_sdl_texture_arr(sdl_texture_arr, sdl_texture_arr_size,
-                                       strip_elm_w, strip_elm_h);
+    // int strip_elm_w = 50;
+    // int strip_elm_h = 50;
+    // read_n_frames_into_sdl_texture_arr(sdl_texture_arr, sdl_texture_arr_size,
+    //                                    strip_elm_w, strip_elm_h);
 
-    err = seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt,
-                        start_frame_num);
-    if (err < 0)
-    {
-        close();
-        return 1;
-    }
+    // err = seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt,
+    //                     start_frame_num);
+    // if (err < 0)
+    // {
+    //     close();
+    //     return 1;
+    // }
 
     // put current frame in sdl texture
-    AVFrame *f = curr_frame;
-    sdl_display_texture =
-        SDL_CreateTexture(sdl_renderer, pix_fmt_av_to_sdl((AVPixelFormat)f->format),
-                          SDL_TEXTUREACCESS_STREAMING, f->width, f->height);
-    if (!sdl_display_texture)
-    {
-        const char *errmsg = SDL_GetError();
-        fprintf(stderr, "Error: %s\n", errmsg);
-        return 1;
-    }
+    // AVFrame *f = curr_frame;
+    // sdl_display_texture =
+    //     SDL_CreateTexture(sdl_renderer, pix_fmt_av_to_sdl((AVPixelFormat)f->format),
+    //                       SDL_TEXTUREACCESS_STREAMING, f->width, f->height);
+    // if (!sdl_display_texture)
+    // {
+    //     const char *errmsg = SDL_GetError();
+    //     fprintf(stderr, "Error: %s\n", errmsg);
+    //     return 1;
+    // }
 
-    if (SDL_UpdateYUVTexture(sdl_display_texture, NULL, f->data[0], f->linesize[0],
-                             f->data[1], f->linesize[1], f->data[2],
-                             f->linesize[2]) < 0)
-    {
-        const char *errmsg = SDL_GetError();
-        fprintf(stderr, "Error: %s\n", errmsg);
-        return 1;
-    }
+    // if (SDL_UpdateYUVTexture(sdl_display_texture, NULL, f->data[0], f->linesize[0],
+    //                          f->data[1], f->linesize[1], f->data[2],
+    //                          f->linesize[2]) < 0)
+    // {
+    //     const char *errmsg = SDL_GetError();
+    //     fprintf(stderr, "Error: %s\n", errmsg);
+    //     return 1;
+    // }
 
     int input_move_forward = 0;
     int input_move_backward = 0;
@@ -648,47 +625,56 @@ int main(int argc, char **argv)
         if (input_move_forward)
         {
             input_move_forward = 0;
-            if (read_for_n_frames(1) < 0)
-            {
-                close();
-                return 1;
-            }
-            if (SDL_UpdateYUVTexture(sdl_display_texture, NULL, curr_frame->data[0],
-                                     curr_frame->linesize[0], curr_frame->data[1],
-                                     curr_frame->linesize[1], curr_frame->data[2],
-                                     curr_frame->linesize[2]) < 0)
-            {
-                const char *errmsg = SDL_GetError();
-                fprintf(stderr, "Error: %s\n", errmsg);
-                return 1;
-            }
+            // input_move_forward = 0;
+            // if (read_for_n_frames(1) < 0)
+            // {
+            //     close();
+            //     return 1;
+            // }
+            // if (SDL_UpdateYUVTexture(sdl_display_texture, NULL, curr_frame->data[0],
+            //                          curr_frame->linesize[0], curr_frame->data[1],
+            //                          curr_frame->linesize[1], curr_frame->data[2],
+            //                          curr_frame->linesize[2]) < 0)
+            // {
+            //     const char *errmsg = SDL_GetError();
+            //     fprintf(stderr, "Error: %s\n", errmsg);
+            //     return 1;
+            // }
+            ring_next(&tfring);
         }
         if (input_move_backward)
         {
             input_move_backward = 0;
-            int curr_framenum =
-                timestamp_to_framenum(ic, video_stream_index, curr_frame->pts);
-            if (seek_backwards_one_frame(curr_framenum) < 0)
-            {
-                close();
-                return 1;
-            }
-            if (SDL_UpdateYUVTexture(sdl_display_texture, NULL, curr_frame->data[0],
-                                     curr_frame->linesize[0], curr_frame->data[1],
-                                     curr_frame->linesize[1], curr_frame->data[2],
-                                     curr_frame->linesize[2]) < 0)
-            {
-                const char *errmsg = SDL_GetError();
-                fprintf(stderr, "Error: %s\n", errmsg);
-                return 1;
-            }
+            // input_move_backward = 0;
+            // int curr_framenum =
+            //     timestamp_to_framenum(ic, video_stream_index, curr_frame->pts);
+            // if (seek_backwards_one_frame(curr_framenum) < 0)
+            // {
+            //     close();
+            //     return 1;
+            // }
+            // if (SDL_UpdateYUVTexture(sdl_display_texture, NULL, curr_frame->data[0],
+            //                          curr_frame->linesize[0], curr_frame->data[1],
+            //                          curr_frame->linesize[1], curr_frame->data[2],
+            //                          curr_frame->linesize[2]) < 0)
+            // {
+            //     const char *errmsg = SDL_GetError();
+            //     fprintf(stderr, "Error: %s\n", errmsg);
+            //     return 1;
+            // }
+            ring_prev(&tfring);
         }
         // display texture
         SDL_SetRenderDrawColor(sdl_renderer, 100, 100, 100, 255);
         SDL_RenderClear(sdl_renderer);
-        SDL_RenderCopy(sdl_renderer, sdl_display_texture, NULL, NULL);
-        sdl_texture_array_render_horizontal_strip(sdl_texture_arr, sdl_texture_arr_size,
-                                                  strip_elm_w, strip_elm_h, 0, 0);
+        // SDL_RenderCopy(sdl_renderer, sdl_display_texture, NULL, NULL);
+        SDL_Rect dst_rect = {0, 0, tfring.width, tfring.height};
+        SDL_RenderCopy(sdl_renderer, tfring.textures[tfring.pos], NULL, &dst_rect);
+        // sdl_texture_array_render_horizontal_strip(sdl_texture_arr,
+        // sdl_texture_arr_size,
+        //   strip_elm_w, strip_elm_h, 0, 0);
+        ring_render_as_strip(sdl_renderer, &tfring, 0, tfring.height, tfring.width,
+                             tfring.height / 10);
         SDL_RenderPresent(sdl_renderer);
 
         // render
