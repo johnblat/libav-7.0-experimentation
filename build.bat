@@ -9,7 +9,6 @@ src\pts_frame_conversions.cpp ^
 src\texture_ring.cpp ^
 src\seek.cpp ^
 src\read.cpp ^
-src\pixel_fmt.cpp ^
 vendor\installed\bin\avcodec.lib ^
 vendor\installed\bin\avformat.lib ^
 vendor\installed\bin\avutil.lib ^

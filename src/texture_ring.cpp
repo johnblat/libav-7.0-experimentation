@@ -124,16 +124,13 @@ void ring_render_strip(TextureFrameRing *ring, int x, int y, int w, int h)
     float texture_dst_height = h;
     float texture_dst_width = w / ring->nb;
 
-    for (int i = x; i < ring->nb; i++)
+    for (int i = 0; i < ring->nb; i++)
     {
         Rectangle dst = {x + i * texture_dst_width, y, texture_dst_width,
                          texture_dst_height};
+        Rectangle src = {0, 0, (float)ring->width, (float)ring->height};
 
-        DrawTexturePro(ring->textures[i],
-                       {0, 0, (float)ring->width, (float)ring->height},
-                       {(float)x + i * texture_dst_width, (float)y, texture_dst_width,
-                        texture_dst_height},
-                       {0, 0}, 0, WHITE);
+        DrawTexturePro(ring->textures[i], src, dst, {0, 0}, 0, WHITE);
 
         if (i == ring->pos)
             DrawRectangleLines(x + i * texture_dst_width, y, texture_dst_width,

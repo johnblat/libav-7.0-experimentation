@@ -305,13 +305,13 @@ int main(int argc, char **argv)
 
     read_until_not_eagain_frame();
 
-    int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, codec_ctx->width,
+    int nb_bytes = av_image_get_buffer_size(av_rgb_pixel_fmt, codec_ctx->width,
                                             codec_ctx->height, 1);
 
-    curr_frame_image.data = RL_MALLOC(numBytes);
+    curr_frame_image.data = RL_MALLOC(nb_bytes);
     ImageClearBackground(&curr_frame_image, BLANK);
 
-    int start_frame_num = 800;
+    int start_frame_num = 850;
 
     tfring = ring_init(PIXELFORMAT_UNCOMPRESSED_R8G8B8);
     int ret = ring_fill(&tfring, start_frame_num);
