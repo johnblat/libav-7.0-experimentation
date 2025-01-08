@@ -11,46 +11,17 @@ extern "C"
 #include "seek.h"
 #include "state.h"
 
-static int internal_decode_next_frame()
-{
-    av_frame_unref(curr_frame);
-    int err = 0;
-
-    for (;;)
-    {
-        av_packet_unref(curr_pkt);
-
-        if ((err = av_read_frame(ic, curr_pkt)) < 0)
-            break;
-
-        if (curr_pkt->stream_index != video_stream_index)
-            continue;
-
-        if ((err = avcodec_send_packet(codec_ctx, curr_pkt)) < 0)
-            break;
-
-        if ((err = avcodec_receive_frame(codec_ctx, curr_frame)) < 0)
-        {
-            if (err == AVERROR(EAGAIN))
-                continue;
-        }
-        break;
-    }
-
-    return err != 0 ? err : 0;
-}
-
+// `ring_init`
+//
+// Initialize a new ring with the given pixel format.
 TextureFrameRing ring_init(PixelFormat format)
 {
     TextureFrameRing ring = {0};
     ring.cap = RING_SIZE;
     ring.format = format;
 
-    // Initialize all textures
     for (size_t i = 0; i < RING_SIZE; i++)
-    {
         ring.frame_numbers[i] = -1;
-    }
 
     return ring;
 }
@@ -74,8 +45,7 @@ int ring_fill(TextureFrameRing *ring, int64_t start_frame)
     int err = 0;
     for (ring->nb = 0; ring->nb < ring->cap; ring->nb++)
     {
-
-        err = internal_decode_next_frame();
+        err = decode_next_frame();
         if (err < 0)
             break;
 
@@ -109,11 +79,6 @@ void ring_prev(TextureFrameRing *ring)
     ring->pos = (ring->pos + ring->nb - 1) % ring->nb;
 }
 
-Texture2D ring_get_curr(TextureFrameRing *ring)
-{
-    return ring->textures[ring->pos];
-}
-
 void ring_render_curr(TextureFrameRing *ring, Rectangle dst)
 {
     DrawTexture(ring->textures[ring->pos], dst.x, dst.y, WHITE);
@@ -126,7 +91,7 @@ void ring_render_strip(TextureFrameRing *ring, int x, int y, int w, int h)
 
     for (int i = 0; i < ring->nb; i++)
     {
-        Rectangle dst = {x + i * texture_dst_width, y, texture_dst_width,
+        Rectangle dst = {x + i * texture_dst_width, (float)y, texture_dst_width,
                          texture_dst_height};
         Rectangle src = {0, 0, (float)ring->width, (float)ring->height};
 
