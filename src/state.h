@@ -17,6 +17,10 @@ extern SwsContext *sws_ctx;
 extern AVPacket *curr_pkt;
 extern AVFrame *curr_frame;
 extern Image curr_frame_image;
+
 extern TextureFrameRing tfring;
+extern RingSubsectionTransitionUpdateRecord
+    ring_subsection_transition_update_table[TRANSITON_TABLE_SIZE];
+
 extern AVPixelFormat av_rgb_pixel_fmt;
 extern PixelFormat raylib_rgb_pixel_fmt;

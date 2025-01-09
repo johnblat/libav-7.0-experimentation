@@ -20,6 +20,8 @@ AVFrame *curr_frame = NULL;
 Image curr_frame_image = {0};
 
 TextureFrameRing tfring;
+RingSubsectionTransitionUpdateRecord
+    ring_subsection_transition_update_table[TRANSITON_TABLE_SIZE];
 
 AVPixelFormat av_rgb_pixel_fmt = AV_PIX_FMT_RGB24;
 PixelFormat raylib_rgb_pixel_fmt = PIXELFORMAT_UNCOMPRESSED_R8G8B8;

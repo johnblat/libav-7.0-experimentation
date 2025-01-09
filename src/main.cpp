@@ -150,12 +150,16 @@ int main(int argc, char **argv)
         close();
         return 1;
     }
+    tfring.pos = 16;
+    tfring.prev_pos = 16;
 
     const float hold_time_until_playback = 0.15;
     float hold_time = 0.0;
     int quit = 0;
+
     while (!WindowShouldClose() && !quit)
     {
+        int subsection_update_val = -1;
         int input_move_forward = 0;
         int input_move_backward = 0;
 
@@ -166,29 +170,46 @@ int main(int argc, char **argv)
                                                              : hold_time_until_playback;
             input_move_forward = hold_time >= hold_time_until_playback;
         }
-        if (IsKeyDown(KEY_LEFT))
+        else if (IsKeyDown(KEY_LEFT))
         {
             hold_time += GetFrameTime();
             hold_time = hold_time < hold_time_until_playback ? hold_time
                                                              : hold_time_until_playback;
             input_move_backward = hold_time >= hold_time_until_playback;
         }
+
         if (IsKeyUp(KEY_RIGHT) && IsKeyUp(KEY_LEFT))
         {
             hold_time = 0.0;
             input_move_backward = 0;
             input_move_forward = 0;
         }
+
         if (IsKeyPressed(KEY_RIGHT))
             input_move_forward = 1;
-        if (IsKeyPressed(KEY_LEFT))
+        else if (IsKeyPressed(KEY_LEFT))
             input_move_backward = 1;
 
         if (input_move_forward)
             ring_next(&tfring);
-
-        if (input_move_backward)
+        else if (input_move_backward)
             ring_prev(&tfring);
+
+        if (input_move_forward || input_move_backward)
+        {
+            uint64_t prev_subsection = ring_index_to_subsection(tfring.prev_pos);
+            uint64_t curr_subsection = ring_index_to_subsection(tfring.pos);
+            subsection_update_val = subsection_transition_calculate_update(
+                prev_subsection, curr_subsection);
+        }
+
+        if (subsection_update_val >= 0 && subsection_update_val < NUM_RING_SUBSECTIONS)
+        {
+            int start_fnb_update =
+                calculate_frame_nb_update_val(ring_index_to_subsection(tfring.prev_pos),
+                                              ring_index_to_subsection(tfring.pos));
+            ring_fill_subsection(&tfring, start_fnb_update, subsection_update_val);
+        }
 
         ClearBackground(GRAY);
         BeginDrawing();
@@ -197,6 +218,10 @@ int main(int argc, char **argv)
                              {0, 0, (float)tfring.width, (float)tfring.height});
             ring_render_strip(&tfring, 0, tfring.height, tfring.width,
                               tfring.height / 10);
+            // on right side, render text of tfring.pos and tfring.prev_pos
+            DrawText(TextFormat("pos: %d", tfring.pos), tfring.width, 0, 20, WHITE);
+            DrawText(TextFormat("prev_pos: %d", tfring.prev_pos), tfring.width, 20, 20,
+                     WHITE);
         }
         EndDrawing();
     }

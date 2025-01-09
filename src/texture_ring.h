@@ -9,30 +9,10 @@ extern "C"
 }
 #include <stdint.h>
 
-#define RING_SIZE 16
-
-// typedef struct TextureFrameRow
-// {
-//     SDL_Texture *texture;
-//     int64_t frame_number;
-// } TextureFrameNbRow;
-
-// typedef struct TextureFramePropertiesRow
-// {
-//     int texture_frame_nb_index;
-//     int width;
-//     int height;
-//     Uint32 format;
-// } TextureFramePropertiesRow;
-
-// typedef struct TextureFrameRingPositionRow
-// {
-//     int texture_frame_nb_index;
-//     int64_t pos;
-// } TextureFrameRingPositionRow;
-
-// const int N_TEXTURE_FRAME_NB_ROWS = 16;
-// TextureFrameNbRow texture_frame_nb_rows[N_TEXTURE_FRAME_NB_ROWS];
+#define RING_SIZE 48
+#define NUM_RING_SUBSECTIONS 3
+#define RING_SUBSECTION_SIZE (RING_SIZE / NUM_RING_SUBSECTIONS)
+#define TRANSITON_TABLE_SIZE (NUM_RING_SUBSECTIONS * 2)
 
 typedef struct TextureFrameRing
 {
@@ -41,14 +21,29 @@ typedef struct TextureFrameRing
     uint64_t nb;                   // Size of the ring
     uint64_t cap;                  // Capacity of the ring
     uint64_t pos;                  // Current position in ring
+    uint64_t prev_pos;             // Previous position in ring
     int width;                     // Width of textures
     int height;                    // Height of textures
     PixelFormat format;            // pixel format
 } TextureFrameRing;
 
-// Core ring operations
+typedef struct RingSubsectionTransitionUpdateRecord
+{
+    uint64_t ring_subsection_from;
+    uint64_t ring_subsection_to;
+} RingSubsectionTransitionUpdateRecord;
+
+uint64_t ring_index_to_subsection(uint64_t index);
+
+uint64_t ring_subsection_to_index(uint64_t subsection);
+int subsection_transition_calculate_update(uint64_t from, uint64_t to);
+
+int calculate_frame_nb_update_val(int from_subsection, int to_subsection);
+
 TextureFrameRing ring_init(PixelFormat fmt);
 int ring_fill(TextureFrameRing *ring, int64_t start_frame);
+int ring_fill_subsection(TextureFrameRing *ring, int64_t start_frame,
+                         uint64_t subsection);
 Texture2D ring_get_curr(TextureFrameRing *ring);
 void ring_next(TextureFrameRing *ring);
 void ring_prev(TextureFrameRing *ring);
