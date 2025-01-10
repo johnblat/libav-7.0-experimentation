@@ -12,7 +12,7 @@ int read_n_frames(AVFormatContext *ic, int stream_index, AVCodecContext *codec_c
     int err = 0;
     for (int i = 0; i < n; i++)
     {
-        err = decode_next_frame();
+        err = decode_next_frame(ic, stream_index, codec_ctx, curr_frame, curr_pkt);
         if (err < 0)
             break;
     }
@@ -20,29 +20,29 @@ int read_n_frames(AVFormatContext *ic, int stream_index, AVCodecContext *codec_c
     return err;
 }
 
-int decode_next_frame()
+int decode_next_frame(AVFormatContext *ic, int stream_index, AVCodecContext *codec_ctx,
+                      AVFrame *frame, AVPacket *pkt)
 {
-    av_frame_unref(curr_frame);
     int ret = 0;
 
     for (;;)
     {
-        av_packet_unref(curr_pkt);
+        av_packet_unref(pkt);
 
-        if ((ret = av_read_frame(ic, curr_pkt)) < 0)
+        ret = av_read_frame(ic, pkt);
+        if (ret < 0)
             break;
 
-        if (curr_pkt->stream_index != video_stream_index)
+        if (pkt->stream_index != video_stream_index)
             continue;
 
-        if ((ret = avcodec_send_packet(codec_ctx, curr_pkt)) < 0)
+        ret = avcodec_send_packet(codec_ctx, pkt);
+        if (ret < 0)
             break;
 
-        if ((ret = avcodec_receive_frame(codec_ctx, curr_frame)) < 0)
-        {
-            if (ret == AVERROR(EAGAIN))
-                continue;
-        }
+        ret = avcodec_receive_frame(codec_ctx, frame);
+        if (ret == AVERROR(EAGAIN))
+            continue;
         break;
     }
 

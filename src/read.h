@@ -12,8 +12,11 @@ extern "C"
 int read_n_frames(AVFormatContext *ic, int stream_index, AVCodecContext *codec_ctx,
                   int n);
 
+;
+
 // `decode_next_frame`
 //
 // Reads until the next valid frame is found and decodes it in to  curr_pkt and
 // curr_frame
-int decode_next_frame();
+int decode_next_frame(AVFormatContext *ic, int stream_index, AVCodecContext *codec_ctx,
+                      AVFrame *frame, AVPacket *pkt);

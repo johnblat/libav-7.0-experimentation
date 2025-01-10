@@ -13,6 +13,7 @@ extern "C"
 #include "texture_ring.h"
 #include <raylib.h>
 #include <stdio.h>
+#include <threads.h>
 
 const char *APP_NAME = "Nekxtar";
 
@@ -133,15 +134,15 @@ int main(int argc, char **argv)
     }
 
     // reads the first frame so that we can get information about the video
-    decode_next_frame();
+    decode_next_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt);
 
-    int nb_bytes = av_image_get_buffer_size(av_rgb_pixel_fmt, codec_ctx->width,
+    int nb_bytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, codec_ctx->width,
                                             codec_ctx->height, 1);
 
     curr_frame_image.data = RL_MALLOC(nb_bytes);
     ImageClearBackground(&curr_frame_image, BLANK);
 
-    int start_frame_num = 850;
+    int start_frame_num = 1400;
 
     tfring = ring_init(PIXELFORMAT_UNCOMPRESSED_R8G8B8);
     int ret = ring_fill(&tfring, start_frame_num);
@@ -205,6 +206,9 @@ int main(int argc, char **argv)
 
         if (subsection_update_val >= 0 && subsection_update_val < NUM_RING_SUBSECTIONS)
         {
+            // FIXME(johnb): somewhere in here is a bug that will make stepping
+            // backwards from the beginning of the stream to the start where the loading
+            // wrap logic gets screwed up and it just loads in frames 0 thru 15 again.
             int start_fnb_update =
                 calculate_frame_nb_update_val(ring_index_to_subsection(tfring.prev_pos),
                                               ring_index_to_subsection(tfring.pos));
@@ -214,14 +218,37 @@ int main(int argc, char **argv)
         ClearBackground(GRAY);
         BeginDrawing();
         {
-            ring_render_curr(&tfring,
-                             {0, 0, (float)tfring.width, (float)tfring.height});
-            ring_render_strip(&tfring, 0, tfring.height, tfring.width,
-                              tfring.height / 10);
-            // on right side, render text of tfring.pos and tfring.prev_pos
-            DrawText(TextFormat("pos: %d", tfring.pos), tfring.width, 0, 20, WHITE);
-            DrawText(TextFormat("prev_pos: %d", tfring.prev_pos), tfring.width, 20, 20,
-                     WHITE);
+            ring_draw_curr(&tfring, {0, 0, (float)tfring.width, (float)tfring.height});
+            ring_draw_strip(&tfring, 0, tfring.height, tfring.width,
+                            tfring.height / 10);
+
+            { // draw info
+                int y = 20;
+                int font_size = 20;
+                int y_add = font_size + 5;
+
+                DrawText(TextFormat("pos: %d", tfring.pos), tfring.width, y, font_size,
+                         WHITE);
+                y += y_add;
+                DrawText(TextFormat("prev_pos: %d", tfring.prev_pos), tfring.width, y,
+                         font_size, WHITE);
+                y += y_add;
+                DrawText(
+                    TextFormat("subsection: %d", ring_index_to_subsection(tfring.pos)),
+                    tfring.width, y, font_size, WHITE);
+                y += y_add;
+
+                DrawText(TextFormat("frame_nb: %d", tfring.frame_numbers[tfring.pos]),
+                         tfring.width, y, font_size, WHITE);
+                y += y_add;
+                DrawText(TextFormat("prev frame_nb: %d",
+                                    tfring.frame_numbers[tfring.prev_pos]),
+                         tfring.width, y, font_size, WHITE);
+                y += y_add;
+                DrawText(TextFormat("total frames: %d",
+                                    ic->streams[video_stream_index]->nb_frames),
+                         tfring.width, y, font_size, WHITE);
+            }
         }
         EndDrawing();
     }

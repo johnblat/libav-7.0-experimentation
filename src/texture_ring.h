@@ -47,5 +47,5 @@ int ring_fill_subsection(TextureFrameRing *ring, int64_t start_frame,
 Texture2D ring_get_curr(TextureFrameRing *ring);
 void ring_next(TextureFrameRing *ring);
 void ring_prev(TextureFrameRing *ring);
-void ring_render_curr(TextureFrameRing *ring, Rectangle dst);
-void ring_render_strip(TextureFrameRing *ring, int x, int y, int w, int h);
+void ring_draw_curr(TextureFrameRing *ring, Rectangle dst);
+void ring_draw_strip(TextureFrameRing *ring, int x, int y, int w, int h);
