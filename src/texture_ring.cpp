@@ -59,10 +59,10 @@ int internal_decode_into_curr_image(int width, int height, PixelFormat format)
 TextureFrameRing ring_init(PixelFormat format)
 {
     TextureFrameRing ring = {0};
-    ring.cap = RING_SIZE;
+    ring.cap = RING_CAP;
     ring.format = format;
 
-    for (size_t i = 0; i < RING_SIZE; i++)
+    for (size_t i = 0; i < RING_CAP; i++)
         ring.frame_numbers[i] = -1;
 
     int curr_pos = 1;
@@ -72,7 +72,7 @@ TextureFrameRing ring_init(PixelFormat format)
         ring_subsection_transition_update_table[i].ring_subsection_from = prev_pos;
         ring_subsection_transition_update_table[i].ring_subsection_to = curr_pos;
         prev_pos = curr_pos;
-        curr_pos = (curr_pos + 1) % NUM_RING_SUBSECTIONS;
+        curr_pos = (curr_pos + 1) % NB_SUBSECTIONS;
     }
     curr_pos = 2;
     prev_pos = 0;
@@ -81,7 +81,7 @@ TextureFrameRing ring_init(PixelFormat format)
         ring_subsection_transition_update_table[i].ring_subsection_from = prev_pos;
         ring_subsection_transition_update_table[i].ring_subsection_to = curr_pos;
         prev_pos = curr_pos;
-        curr_pos = internal_modulo((curr_pos - 1), NUM_RING_SUBSECTIONS);
+        curr_pos = internal_modulo((curr_pos - 1), NB_SUBSECTIONS);
     }
     return ring;
 }
@@ -102,8 +102,8 @@ int ring_fill(TextureFrameRing *ring, int64_t start_frame)
     ring->width = ic->streams[video_stream_index]->codecpar->width;
     ring->height = ic->streams[video_stream_index]->codecpar->height;
 
-    int ret = seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt,
-                            start_frame);
+    int ret =
+        seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt, start_frame);
 
     for (ring->nb = 0; ring->nb < ring->cap; ring->nb++)
     {
@@ -117,8 +117,7 @@ int ring_fill(TextureFrameRing *ring, int64_t start_frame)
 
             avcodec_flush_buffers(codec_ctx);
 
-            ret = internal_decode_into_curr_image(ring->width, ring->height,
-                                                  ring->format);
+            ret = internal_decode_into_curr_image(ring->width, ring->height, ring->format);
             if (ret < 0)
                 break;
         }
@@ -168,16 +167,15 @@ void ring_draw_strip(TextureFrameRing *ring, int x, int y, int w, int h)
     }
 }
 
-int ring_fill_subsection(TextureFrameRing *ring, int64_t start_frame,
-                         uint64_t subsection)
+int ring_fill_subsection(TextureFrameRing *ring, int64_t start_frame, uint64_t subsection)
 {
     if (start_frame < 0 || start_frame > ic->streams[video_stream_index]->nb_frames)
         start_frame = 0;
 
     int start_idx = ring_subsection_to_index(subsection);
 
-    int ret = seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt,
-                            start_frame);
+    int ret =
+        seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt, start_frame);
     if (ret < 0)
         return ret;
 
@@ -193,8 +191,7 @@ int ring_fill_subsection(TextureFrameRing *ring, int64_t start_frame,
 
             avcodec_flush_buffers(codec_ctx);
 
-            ret = internal_decode_into_curr_image(ring->width, ring->height,
-                                                  ring->format);
+            ret = internal_decode_into_curr_image(ring->width, ring->height, ring->format);
             if (ret < 0)
                 break;
         }
@@ -209,18 +206,16 @@ int ring_fill_subsection(TextureFrameRing *ring, int64_t start_frame,
     return ret;
 }
 
-int calculate_frame_nb_update_val(int from_subsection, int to_subsection)
+int calculate_frame_nb_to_update(int from_subsection, int to_subsection)
 {
-    int subsection_update =
-        subsection_transition_calculate_update(from_subsection, to_subsection);
+    int subsection_update = calculate_subsection_to_update(from_subsection, to_subsection);
     if (subsection_update == -1)
         return -1;
-    int diff =
-        (to_subsection - from_subsection + NUM_RING_SUBSECTIONS) % NUM_RING_SUBSECTIONS;
+    int diff = (to_subsection - from_subsection + NB_SUBSECTIONS) % NB_SUBSECTIONS;
     int dir = 0;
     if (diff == 1)
         dir = 1;
-    else if (diff == NUM_RING_SUBSECTIONS - 1)
+    else if (diff == NB_SUBSECTIONS - 1)
         dir = -1;
     else
         return -1;
@@ -231,10 +226,10 @@ int calculate_frame_nb_update_val(int from_subsection, int to_subsection)
     return start_fnb_load;
 }
 
-int subsection_transition_calculate_update(uint64_t from, uint64_t to)
+int calculate_subsection_to_update(uint64_t from, uint64_t to)
 {
     const int no_update = -1;
-    int update_subsection = (NUM_RING_SUBSECTIONS - from - to) % NUM_RING_SUBSECTIONS;
+    int update_subsection = (NB_SUBSECTIONS - from - to) % NB_SUBSECTIONS;
 
     // make sure its an actual transition
     for (int i = 0; i < TRANSITON_TABLE_SIZE; i++)

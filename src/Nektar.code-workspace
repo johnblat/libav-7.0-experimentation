@@ -1,0 +1,24 @@
+{
+	"folders": [
+		{
+			"name": "Nektar",
+			"path": ".."
+		},
+		{
+			"name": "raylib-5.5_win64_msvc16",
+			"path": "../../../../Downloads/raylib-5.5_win64_msvc16/raylib-5.5_win64_msvc16"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.gtpl": "html",
+			"erb": "html",
+			"xiosbase": "c",
+			"xstring": "c",
+			"chrono": "cpp",
+			"format": "cpp",
+			"thread": "cpp",
+			"ranges": "cpp"
+		}
+	}
+}
