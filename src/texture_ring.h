@@ -18,6 +18,7 @@ typedef struct TextureFrameRing
 {
     Texture2D textures[RING_CAP]; // Array of  textures
     int frame_numbers[RING_CAP];  // Array of frame numbers
+    bool is_keyframe[RING_CAP];   // Array of keyframe flags
     uint64_t nb;                  // Size of the ring
     uint64_t cap;                 // Capacity of the ring
     uint64_t pos;                 // Current position in ring
@@ -47,3 +48,4 @@ void ring_next(TextureFrameRing *ring);
 void ring_prev(TextureFrameRing *ring);
 void ring_draw_curr(TextureFrameRing *ring, Rectangle dst);
 void ring_draw_strip(TextureFrameRing *ring, int x, int y, int w, int h);
+uint64_t ring_max_frame_number(TextureFrameRing *ring);

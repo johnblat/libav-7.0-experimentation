@@ -25,3 +25,6 @@ RingSubsectionTransitionUpdateRecord
 
 AVPixelFormat av_rgb_pixel_fmt = AV_PIX_FMT_RGB24;
 PixelFormat raylib_rgb_pixel_fmt = PIXELFORMAT_UNCOMPRESSED_R8G8B8;
+
+LoadTextureFromImgSpscQueue load_queue = {0};
+DecodeRequestSpscQueue decode_queue = {0};

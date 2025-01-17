@@ -20,7 +20,7 @@ int internal_modulo(int a, int b)
     return (a % b + b) % b;
 }
 
-int internal_avframe_to_image(AVFrame *frame, Image *image)
+int internal_avframe_to_image_2(AVFrame *frame, Image *image)
 {
     const int rgbLineSize = frame->width * 3;
 
@@ -45,7 +45,7 @@ int internal_decode_into_curr_image(int width, int height, PixelFormat format)
     ret = decode_next_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt);
     if (ret < 0)
         return ret;
-    ret = internal_avframe_to_image(curr_frame, &curr_frame_image);
+    ret = internal_avframe_to_image_2(curr_frame, &curr_frame_image);
     return ret;
 }
 
@@ -153,6 +153,9 @@ void ring_draw_strip(TextureFrameRing *ring, int x, int y, int w, int h)
     float texture_dst_height = h;
     float texture_dst_width = w / ring->nb;
 
+    Color keyframe_color = RED;
+    Color active_frame_keyframe_color = PINK;
+
     for (int i = 0; i < ring->nb; i++)
     {
         Rectangle dst = {x + i * texture_dst_width, (float)y, texture_dst_width,
@@ -161,50 +164,58 @@ void ring_draw_strip(TextureFrameRing *ring, int x, int y, int w, int h)
 
         DrawTexturePro(ring->textures[i], src, dst, {0, 0}, 0, WHITE);
 
-        if (i == ring->pos)
+        if (ring->is_keyframe[i])
             DrawRectangleLines(x + i * texture_dst_width, y, texture_dst_width,
-                               texture_dst_height, YELLOW);
-    }
-}
-
-int ring_fill_subsection(TextureFrameRing *ring, int64_t start_frame, uint64_t subsection)
-{
-    if (start_frame < 0 || start_frame > ic->streams[video_stream_index]->nb_frames)
-        start_frame = 0;
-
-    int start_idx = ring_subsection_to_index(subsection);
-
-    int ret =
-        seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt, start_frame);
-    if (ret < 0)
-        return ret;
-
-    for (int i = 0; i < RING_SUBSECTION_SIZE; i++)
-    {
-        ret = internal_decode_into_curr_image(ring->width, ring->height, ring->format);
-        if (ret == AVERROR_EOF)
-        { // reached the end of stream so start over
-            ret = avformat_seek_file(ic, video_stream_index, INT64_MIN, 0, INT64_MAX,
-                                     AVSEEK_FLAG_BACKWARD);
-            if (ret < 0)
-                return ret;
-
-            avcodec_flush_buffers(codec_ctx);
-
-            ret = internal_decode_into_curr_image(ring->width, ring->height, ring->format);
-            if (ret < 0)
-                break;
+                               texture_dst_height, keyframe_color);
+        if (i == ring->pos)
+        {
+            Color higlight_color = YELLOW;
+            if (ring->is_keyframe[i])
+                higlight_color = active_frame_keyframe_color;
+            DrawRectangleLines(x + i * texture_dst_width, y, texture_dst_width,
+                               texture_dst_height, higlight_color);
         }
-        if (ret < 0)
-            break;
-        int idx = start_idx + i;
-        UnloadTexture(ring->textures[idx]);
-        ring->textures[idx] = LoadTextureFromImage(curr_frame_image);
-        ring->frame_numbers[idx] = start_frame + i;
     }
-
-    return ret;
 }
+
+// int ring_fill_subsection(TextureFrameRing *ring, int64_t start_frame, uint64_t subsection)
+// {
+//     if (start_frame < 0 || start_frame > ic->streams[video_stream_index]->nb_frames)
+//         start_frame = 0;
+
+//     int start_idx = ring_subsection_to_index(subsection);
+
+//     int ret =
+//         seek_to_frame(ic, video_stream_index, codec_ctx, curr_frame, curr_pkt, start_frame);
+//     if (ret < 0)
+//         return ret;
+
+//     for (int i = 0; i < RING_SUBSECTION_SIZE; i++)
+//     {
+//         ret = internal_decode_into_curr_image(ring->width, ring->height, ring->format);
+//         if (ret == AVERROR_EOF)
+//         { // reached the end of stream so start over
+//             ret = avformat_seek_file(ic, video_stream_index, INT64_MIN, 0, INT64_MAX,
+//                                      AVSEEK_FLAG_BACKWARD);
+//             if (ret < 0)
+//                 return ret;
+
+//             avcodec_flush_buffers(codec_ctx);
+
+//             ret = internal_decode_into_curr_image(ring->width, ring->height, ring->format);
+//             if (ret < 0)
+//                 break;
+//         }
+//         if (ret < 0)
+//             break;
+//         int idx = start_idx + i;
+//         UnloadTexture(ring->textures[idx]);
+//         ring->textures[idx] = LoadTextureFromImage(curr_frame_image);
+//         ring->frame_numbers[idx] = start_frame + i;
+//     }
+
+//     return ret;
+// }
 
 int calculate_frame_nb_to_update(int from_subsection, int to_subsection)
 {
@@ -251,18 +262,11 @@ uint64_t ring_index_to_subsection(uint64_t index)
     return ret;
 }
 
-int load_request = -1;
-uint64_t frame_start_load_request = 0;
-
-void ring_load_request_thread()
+uint64_t ring_max_frame_number(TextureFrameRing *ring)
 {
-    for (;;)
-    {
-        if (load_request >= 0 && load_request < RING_SUBSECTION_SIZE)
-        {
-            ring_fill_subsection(&tfring, frame_start_load_request, load_request);
-            load_request = -1;
-        }
-        WaitTime(1 / 30);
-    }
+    int64_t max = 0;
+    for (int i = 0; i < ring->cap; i++)
+        if (ring->frame_numbers[i] > max)
+            max = ring->frame_numbers[i];
+    return max;
 }

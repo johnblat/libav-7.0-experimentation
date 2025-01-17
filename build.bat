@@ -9,6 +9,8 @@ src\pts_frame_conversions.cpp ^
 src\texture_ring.cpp ^
 src\seek.cpp ^
 src\read.cpp ^
+src\decode_queue.cpp ^
+src\load_texture_from_image_queue.cpp ^
 vendor\installed\bin\avcodec.lib ^
 vendor\installed\bin\avformat.lib ^
 vendor\installed\bin\avutil.lib ^

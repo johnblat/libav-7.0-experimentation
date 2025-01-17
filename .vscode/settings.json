@@ -1,7 +1,10 @@
 {
     "files.associations": {
+        "*.gtpl": "html",
+        "erb": "html",
         "xiosbase": "c",
-        "xstring": "c"
+        "xstring": "c",
+        "atomic": "cpp"
     },
     "cmake.ignoreCMakeListsMissing": true,
     "editor.formatOnSave": true,

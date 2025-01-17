@@ -6,6 +6,8 @@ extern "C"
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 }
+#include "decode_queue.h"
+#include "load_texture_from_image_queue.h"
 #include "texture_ring.h"
 #include <raylib.h>
 
@@ -24,3 +26,6 @@ extern RingSubsectionTransitionUpdateRecord
 
 extern AVPixelFormat av_rgb_pixel_fmt;
 extern PixelFormat raylib_rgb_pixel_fmt;
+
+extern LoadTextureFromImgSpscQueue load_queue;
+extern DecodeRequestSpscQueue decode_queue;

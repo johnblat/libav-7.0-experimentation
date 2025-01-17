@@ -2,15 +2,6 @@
 #include "pts_frame_conversions.h"
 #include "read.h"
 
-// Helper function to estimate frame timestamp
-// static int64_t estimate_frame_timestamp(AVFormatContext *ic, int stream_index, int
-// frame_num) {
-//     AVStream *st = ic->streams[stream_index];
-//     double frame_rate = av_q2d(st->r_frame_rate);
-//     double time_base = av_q2d(st->time_base);
-//     double time_in_seconds = frame_num / frame_rate;
-//     return (int64_t)(time_in_seconds / time_base);
-// }
 
 int seek_to_frame(AVFormatContext *ic, int stream_index, AVCodecContext *codec_ctx,
                   AVFrame *frame, AVPacket *pkt, int target_frame_nb)
